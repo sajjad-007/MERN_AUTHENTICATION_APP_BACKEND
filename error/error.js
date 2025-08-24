@@ -7,8 +7,8 @@ class ErrorHandler extends Error {
 }
 
 const errorMiddleware = (err, req, res, next) => {
-  err.message = message || 'Internal Server Error!';
-  err.statusCode = statusCode || 500;
+  err.message = err.message || 'Internal Server Error!';
+  err.statusCode = err.statusCode || 500;
 
   // Mongoose CastError (invalid ObjectId)
   if (err.name === 'CastError') {
@@ -37,7 +37,7 @@ const errorMiddleware = (err, req, res, next) => {
 
   return res.status(err.statusCode).json({
     success: false,
-    message: errMessage,
+    message: err.message,
   });
 };
 
