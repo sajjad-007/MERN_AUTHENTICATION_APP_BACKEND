@@ -20,7 +20,7 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
-    accoutnVerified: {
+    accountVerified: {
       type: Boolean,
       default: false,
     },
@@ -45,9 +45,14 @@ userSchema.methods.comparePassword = async function (userEnteredPassword) {
 };
 
 userSchema.methods.generateVerificationCode = function () {
-  const firstDigits = Math.floor(Math.random() * 10) + 1;
-  const lastDigits = Math.floor(Math.random() * 10000).toString().padStart(4,'0');
-  return parseInt(firstDigits + lastDigits);
+  function generateRandomFiveDigitNumber() {
+    return Math.floor(10000 + Math.random() * 90000);
+  }
+  const verificationCode = generateRandomFiveDigitNumber();
+  this.verificationCode = verificationCode;
+  this.verificationCodeExpire = Date.now() + 5 * 60 * 1000;
+
+  return verificationCode;
 };
 
 const User = mongoose.model('user', userSchema);

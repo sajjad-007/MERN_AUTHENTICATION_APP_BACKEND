@@ -3,17 +3,50 @@ const { asyncErrorCatcher } = require('../error/asyncError');
 const { ErrorHandler } = require('../error/error');
 const { emailTemplate } = require('../utils/emailTemplate');
 const { sendEmail } = require('../utils/nodemailer');
+const twilio = require('twilio');
 
+const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 // verification methods email or password
 const sendVerificationCode = async (
   verificationMethod,
   verificationCode,
   email,
-  phoneNumber
+  phoneNumber,
+  res,
+  next
 ) => {
-  if (verificationMethod === 'email') {
-    const templete = emailTemplate(verificationCode);
-    await sendEmail({ email, subject: 'Verify Your Email', templete });
+  try {
+    if (verificationMethod === 'email') {
+      const templete = emailTemplate(verificationCode);
+      await sendEmail({ email, subject: 'Verify Your Email', templete });
+      res.status(200).json({
+        success: true,
+        message: `email sent to ${email}`,
+      });
+    } else if (verificationMethod === 'phone') {
+      const verificationCodeWithSpace = verificationCode
+        .toString()
+        .split('')
+        .join(' ');
+      const response = await client.calls.create({
+        from: process.env.TWILIO_PHONE,
+        to: phoneNumber,
+        twiml: `<Response>
+                <Say>Your otp is ${verificationCodeWithSpace}. Your otp is ${verificationCodeWithSpace}
+                </Say>
+            </Response>`,
+      });
+      if (response) {
+        res.status(200).json({
+          success: true,
+          message: 'we will call you soon for your otp',
+        });
+      }
+    } else {
+      return next(new ErrorHandler('Verification failed!', 401));
+    }
+  } catch (error) {
+    return next(new ErrorHandler('Send to Verification code failed!', 500));
   }
 };
 
@@ -41,8 +74,8 @@ const createAccount = asyncErrorCatcher(async (req, res, next) => {
     //find user exist or not
     const existingUser = await User.findOne({
       $or: [
-        { email: email, accoutnVerified: true },
-        { phoneNumber: phoneNumber, accoutnVerified: true },
+        { email: email, accountVerified: true },
+        { phoneNumber: phoneNumber, accountVerified: true },
       ],
     });
     if (existingUser) {
@@ -76,20 +109,18 @@ const createAccount = asyncErrorCatcher(async (req, res, next) => {
     }
 
     const verificationCode = userData.generateVerificationCode();
+    await userData.save();
     await sendVerificationCode(
       verificationMethod,
       verificationCode,
       email,
-      phoneNumber
+      phoneNumber,
+      res,
+      next
     );
-
-    res.status(200).json({
-      success: true,
-      message: `otp sent at ${email}`,
-      userData,
-    });
+    return;
   } catch (error) {
-    next(error);
+    return next(new ErrorHandler('Error from create Account', 500));
   }
 });
 
