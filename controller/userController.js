@@ -5,10 +5,7 @@ const { emailTemplate } = require('../utils/emailTemplate');
 const { sendEmail } = require('../utils/nodemailer');
 const twilio = require('twilio');
 
-const client = twilio(
-  'AC589df1ece544ede6dbdefeccac884f3f',
-  '70757bcce40ab5f415aef6ac02074624'
-);
+const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 // verification methods email or password
 const sendVerificationCode = async (
   verificationMethod,
@@ -32,7 +29,7 @@ const sendVerificationCode = async (
         .split('')
         .join(' ');
       const response = await client.calls.create({
-        from: +8801824750778,
+        from: process.env.TWILIO_PHONE,
         to: phoneNumber,
         twiml: `<Response><Say>Your otp is ${verificationCodeWithSpace}. Your otp is ${verificationCodeWithSpace}. Your otp is ${verificationCodeWithSpace}</Say></Response>`,
       });
