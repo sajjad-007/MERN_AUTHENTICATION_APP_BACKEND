@@ -5,7 +5,10 @@ const { emailTemplate } = require('../utils/emailTemplate');
 const { sendEmail } = require('../utils/nodemailer');
 const twilio = require('twilio');
 
-const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
+const client = twilio(
+  'AC589df1ece544ede6dbdefeccac884f3f',
+  '70757bcce40ab5f415aef6ac02074624'
+);
 // verification methods email or password
 const sendVerificationCode = async (
   verificationMethod,
@@ -29,12 +32,9 @@ const sendVerificationCode = async (
         .split('')
         .join(' ');
       const response = await client.calls.create({
-        from: process.env.TWILIO_PHONE,
+        from: +8801824750778,
         to: phoneNumber,
-        twiml: `<Response>
-                <Say>Your otp is ${verificationCodeWithSpace}. Your otp is ${verificationCodeWithSpace}
-                </Say>
-            </Response>`,
+        twiml: `<Response><Say>Your otp is ${verificationCodeWithSpace}. Your otp is ${verificationCodeWithSpace}. Your otp is ${verificationCodeWithSpace}</Say></Response>`,
       });
       if (response) {
         res.status(200).json({
@@ -64,7 +64,7 @@ const createAccount = asyncErrorCatcher(async (req, res, next) => {
       return next(new ErrorHandler('Credentials Missing!', 404));
     }
     const validatePhoneNumber = phoneNumber => {
-      const phoneRegx = /^\+880\d{10}$/; // expects +880 followed by 11 digits
+      const phoneRegx = /^\+880\d{10}$/; // expects +880 followed by 10 digits
       return phoneRegx.test(phoneNumber); // returns true or false
     };
     if (!validatePhoneNumber(phoneNumber)) {

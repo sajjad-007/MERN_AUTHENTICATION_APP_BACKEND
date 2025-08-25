@@ -25,7 +25,7 @@ const userSchema = new Schema(
       default: false,
     },
     verificationMethod: String,
-    verificationCode: Number,
+    verificationCode: String,
     verificationCodeExpire: Date,
     resetPasswordToken: String,
     resetPasswordTokenExpire: Date,
@@ -46,11 +46,15 @@ userSchema.methods.comparePassword = async function (userEnteredPassword) {
 
 userSchema.methods.generateVerificationCode = function () {
   function generateRandomFiveDigitNumber() {
-    return Math.floor(10000 + Math.random() * 90000);
+    const firstDigit = Math.floor(Math.random() * 1000) + 1;
+    const lastFiveDigit = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(4, 0);
+    return firstDigit + lastFiveDigit;
   }
   const verificationCode = generateRandomFiveDigitNumber();
-  this.verificationCode = verificationCode;
   this.verificationCodeExpire = Date.now() + 5 * 60 * 1000;
+  this.verificationCode = verificationCode;
 
   return verificationCode;
 };
