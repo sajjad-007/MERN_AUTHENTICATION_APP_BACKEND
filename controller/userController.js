@@ -4,6 +4,7 @@ const { ErrorHandler } = require('../error/error');
 const { emailTemplate } = require('../utils/emailTemplate');
 const { sendEmail } = require('../utils/nodemailer');
 const twilio = require('twilio');
+const { generateToken } = require('../utils/jwtToken');
 
 const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 // verification methods email or password
@@ -76,7 +77,9 @@ const createAccount = asyncErrorCatcher(async (req, res, next) => {
       ],
     });
     if (existingUser) {
-      return next(new ErrorHandler('Email or Phone Number exist!', 401));
+      return next(
+        new ErrorHandler('Email or Phone Number Already Exist!', 401)
+      );
     }
 
     //
@@ -120,5 +123,71 @@ const createAccount = asyncErrorCatcher(async (req, res, next) => {
     return next(new ErrorHandler('Error from create Account', 500));
   }
 });
+const otpVerify = asyncErrorCatcher(async (req, res, next) => {
+  const { email, phoneNumber, otp } = req.body;
+  const validatePhoneNumber = phoneNumber => {
+    const phoneRegx = /^\+880\d{10}$/; // expects +880 followed by 10 digits
+    return phoneRegx.test(phoneNumber); // returns true or false
+  };
+  if (!validatePhoneNumber(phoneNumber)) {
+    return next(new ErrorHandler("phone number format doesn't match!", 401));
+  }
+  try {
+    //Find all unverified users with the same email or phoneNumber.
+    //Keep the most recently created one, using sort()
+    //Delete the others. using deleteMany()
+    const findUnverifiedUsers = await User.find({
+      $or: [
+        { email: email, accountVerified: false },
+        { phoneNumber: phoneNumber, accountVerified: false },
+      ],
+    }).sort({ createdAt: -1 });
+    //find() method returns an array[];
 
-module.exports = { createAccount };
+    let user;
+
+    if (findUnverifiedUsers.length > 1) {
+      user = findUnverifiedUsers[0];
+      await User.deleteMany({
+        // $ne = Not Equal
+        //Returns all unverified users except the one with (user._id)
+        _id: { $ne: user._id },
+        $or: [
+          { email: email, accountVerified: false },
+          { phoneNumber: phoneNumber, accountVerified: false },
+        ],
+      });
+    } else {
+      user = findUnverifiedUsers[0];
+    }
+    if (user.verificationCode !== otp) {
+      return next(new ErrorHandler("Otp doesn't match", 401));
+    }
+    // check my otp is expired
+    // convert => user.verificationCodeExpire = 2025-08-27T01:08:09.010+00:00 this to 124343445 this
+    if (Date.now() > new Date(user.verificationCodeExpire).getTime()) {
+      return next(new ErrorHandler('Otp expired', 401));
+    }
+    generateToken(
+      user,
+      res,
+      200,
+      'Verification successfull, Redirecting to Login page'
+    );
+
+    user.accountVerified = true;
+    user.verificationCode = null;
+    user.verificationCodeExpire = null;
+    await user.save().isModified(true);
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification successfull, Redirecting to Login page',
+      user,
+    });
+  } catch (error) {
+    return next(new ErrorHandler('Error From Otp Verification', 500));
+  }
+});
+
+module.exports = { createAccount, otpVerify };
