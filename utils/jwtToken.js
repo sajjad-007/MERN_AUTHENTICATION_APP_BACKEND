@@ -1,10 +1,10 @@
-const generateToken = (user, res, statuscode, message) => {
+const generateTokenForBrowser = (user, res, statuscode, message) => {
   const token = user.generateJwtToken();
   res
     .status(statuscode)
     .cookie('token', token, {
       expires: new Date(
-        Date.now() + process.env.TOKEN_EXPIRE * 24 * 60 * 60 * 1000
+        Date.now() + 5 * 24 * 60 * 60 * 1000
       ),
       httpOnly: true,
       sameSite: 'None',
@@ -17,4 +17,4 @@ const generateToken = (user, res, statuscode, message) => {
       user,
     });
 };
-module.exports = { generateToken };
+module.exports = { generateTokenForBrowser };

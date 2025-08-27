@@ -4,7 +4,7 @@ const { ErrorHandler } = require('../error/error');
 const { emailTemplate } = require('../utils/emailTemplate');
 const { sendEmail } = require('../utils/nodemailer');
 const twilio = require('twilio');
-const { generateToken } = require('../utils/jwtToken');
+const { generateTokenForBrowser } = require('../utils/jwtToken');
 
 const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 // verification methods email or password
@@ -136,7 +136,7 @@ const otpVerify = asyncErrorCatcher(async (req, res, next) => {
     //Find all unverified users with the same email or phoneNumber.
     //Keep the most recently created one, using sort()
     //Delete the others. using deleteMany()
-    const findUnverifiedUsers = await User.find({
+    const findUnverifiedSameUsers = await User.find({
       $or: [
         { email: email, accountVerified: false },
         { phoneNumber: phoneNumber, accountVerified: false },
@@ -146,8 +146,8 @@ const otpVerify = asyncErrorCatcher(async (req, res, next) => {
 
     let user;
 
-    if (findUnverifiedUsers.length > 1) {
-      user = findUnverifiedUsers[0];
+    if (findUnverifiedSameUsers.length > 1) {
+      user = findUnverifiedSameUsers[0];
       await User.deleteMany({
         // $ne = Not Equal
         //Returns all unverified users except the one with (user._id)
@@ -158,36 +158,82 @@ const otpVerify = asyncErrorCatcher(async (req, res, next) => {
         ],
       });
     } else {
-      user = findUnverifiedUsers[0];
+      user = findUnverifiedSameUsers[0];
     }
     if (user.verificationCode !== otp) {
       return next(new ErrorHandler("Otp doesn't match", 401));
     }
     // check my otp is expired
+    //Current time
+    const currentTime = Date.now();
     // convert => user.verificationCodeExpire = 2025-08-27T01:08:09.010+00:00 this to 124343445 this
-    if (Date.now() > new Date(user.verificationCodeExpire).getTime()) {
+    const verificationCodeExpire = new Date(
+      user.verificationCodeExpire
+    ).getTime();
+
+    if (currentTime > verificationCodeExpire) {
       return next(new ErrorHandler('Otp expired', 401));
     }
-    generateToken(
+
+    user.accountVerified = true;
+    user.verificationCode = null;
+    user.verificationCodeExpire = null;
+    await user.save({ validateModifiedOnly: true });
+
+    generateTokenForBrowser(
       user,
       res,
       200,
       'Verification successfull, Redirecting to Login page'
     );
-
-    user.accountVerified = true;
-    user.verificationCode = null;
-    user.verificationCodeExpire = null;
-    await user.save().isModified(true);
-
-    res.status(200).json({
-      success: true,
-      message: 'Verification successfull, Redirecting to Login page',
-      user,
-    });
   } catch (error) {
     return next(new ErrorHandler('Error From Otp Verification', 500));
   }
 });
+const login = asyncErrorCatcher(async (req, res, next) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return next(new ErrorHandler('Credentials Missing!'));
+  }
+  //check user exist or not
+  const user = await User.findOne({
+    email: email,
+    accountVerified: true,
+  }).select('+password');
+  if (!user) {
+    return next(new ErrorHandler('User not found!', 404));
+  }
+  const isPasswordMatch = await user.comparePassword(password);
+  if (!isPasswordMatch) {
+    return next(new ErrorHandler('Invalid Email or Password', 400));
+  }
+  generateTokenForBrowser(user, res, 200, 'Logged In successfully!');
+  
+});
+const logOut = asyncErrorCatcher(async (req, res, next) => {
+  res
+    .status(200)
+    .cookie('token', '', {
+      expires: new Date(Date.now()),
+      httpOnly: true,
+      sameSite: 'None',
+      secure: true,
+    })
+    .json({
+      success: true,
+      message: 'Log out successfull!',
+    });
+});
+const getUser = asyncErrorCatcher(async(req,res,next)=>{
+  const user = await User.findOne({})
+  if(!user) {
+    return next(new ErrorHandler("User not found",404))
+  }
+  res.status(200).json({
+    success: true,
+    message: "User found!",
+    user,
+  })
+})
 
-module.exports = { createAccount, otpVerify };
+module.exports = { createAccount, otpVerify, login, logOut, getUser };
