@@ -5,6 +5,7 @@ const { errorMiddleware } = require('./error/error');
 const app = express();
 const allRoutes = require('./routes/auth.apiRoutes');
 const cookieParser = require('cookie-parser');
+const { removeUnverifiedAccounts } = require('./automation/removeUnverifiedAccounts');
 dotenv.config({ path: './config/config.env' });
 
 app.use(
@@ -20,6 +21,8 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/v1/user', allRoutes);
+removeUnverifiedAccounts()
+
 app.use(errorMiddleware);
 
 module.exports = { app };

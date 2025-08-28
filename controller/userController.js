@@ -86,14 +86,15 @@ const createAccount = asyncErrorCatcher(async (req, res, next) => {
     //
     const userAttemptToRegister = await User.find({
       $or: [
-        { email: email, accoutnVerified: false },
-        { phoneNumber: phoneNumber, accoutnVerified: false },
+        { email: email, accountVerified: false },
+        { phoneNumber: phoneNumber, accountVerified: false },
       ],
     });
-    if (userAttemptToRegister.length > 3) {
+    if (userAttemptToRegister?.length > 3) {
       return next(
         new ErrorHandler(
-          'You have excceded your registration attempt! try an hour later'
+          'You have excceded your registration attempt! try half an hour later',
+          401
         )
       );
     }
@@ -287,7 +288,7 @@ const resetPassword = asyncErrorCatcher(async (req, res, next) => {
   }
   if (password !== confirmPassword) {
     return next(
-      new ErrorHandler("Password and Confirm Password Doesn't Match!",401)
+      new ErrorHandler("Password and Confirm Password Doesn't Match!", 401)
     );
   }
   user.password = password;
