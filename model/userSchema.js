@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const userSchema = new Schema(
   {
@@ -65,6 +66,16 @@ userSchema.methods.generateJwtToken = function () {
   return jwt.sign({ id: this._id }, process.env.TOKEN_SECRET_KEY, {
     expiresIn: process.env.TOKEN_EXPIRE,
   });
+};
+
+// this is not jwt token, its just normal token created by using crypto
+userSchema.methods.generateResetToken = function () {
+  const token = crypto.randomBytes(20).toString('hex');
+  //Hashing and Adding Reset Password Token To UserSchema
+  const resetToken = crypto.createHash('sha256').update(token).digest('hex');
+  this.resetPasswordToken = resetToken;
+  this.resetPasswordTokenExpire = Date.now() + 15 * 60 * 1000;
+  return token;
 };
 
 const User = mongoose.model('user', userSchema);

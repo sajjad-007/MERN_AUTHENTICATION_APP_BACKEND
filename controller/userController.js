@@ -5,6 +5,7 @@ const { emailTemplate } = require('../utils/emailTemplate');
 const { sendEmail } = require('../utils/nodemailer');
 const twilio = require('twilio');
 const { generateTokenForBrowser } = require('../utils/jwtToken');
+const crypto = require('crypto');
 
 const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 // verification methods email or password
@@ -208,7 +209,6 @@ const login = asyncErrorCatcher(async (req, res, next) => {
     return next(new ErrorHandler('Invalid Email or Password', 400));
   }
   generateTokenForBrowser(user, res, 200, 'Logged In successfully!');
-  
 });
 const logOut = asyncErrorCatcher(async (req, res, next) => {
   res
@@ -224,16 +224,85 @@ const logOut = asyncErrorCatcher(async (req, res, next) => {
       message: 'Log out successfull!',
     });
 });
-const getUser = asyncErrorCatcher(async(req,res,next)=>{
-  const user = await User.findOne({})
-  if(!user) {
-    return next(new ErrorHandler("User not found",404))
+const getUser = asyncErrorCatcher(async (req, res, next) => {
+  // const user = req.user;
+  const user = req.user;
+  if (!user) {
+    return next(new ErrorHandler('User not found', 404));
   }
   res.status(200).json({
     success: true,
-    message: "User found!",
+    message: 'User found!',
     user,
-  })
-})
+  });
+});
+// FORGOT PASSWORD
+const forgotPassword = asyncErrorCatcher(async (req, res, next) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email: email, accountVerified: true });
+  if (!user) {
+    return next(new ErrorHandler('User not found!', 404));
+  }
+  const token = user.generateResetToken();
+  if (!token) {
+    return next(new ErrorHandler('Reset Token is Missing!', 400));
+  }
+  await user.save({ validateModifiedOnly: false });
+  const message = `Your reset password token is. \n \n ${process.env.FRONTEND_URL}/reset/password/${token} \n \n If you didn't request for this, you can safely ignore this email`;
 
-module.exports = { createAccount, otpVerify, login, logOut, getUser };
+  try {
+    await sendEmail({ email, subject: 'Reset Password Token', message });
+    res.status(200).json({
+      success: true,
+      messge: `Reset token sent at ${email}`,
+    });
+  } catch (error) {
+    user.resetPasswordToken = undefined;
+    user.resetPasswordTokenExpire = undefined;
+    await user.save();
+    return next(
+      new ErrorHandler(
+        error.message ? error.message : 'Reset password email failed to send',
+        400
+      )
+    );
+  }
+});
+//RESET YOUR PASSWORD
+const resetPassword = asyncErrorCatcher(async (req, res, next) => {
+  const { token } = req.params;
+  const resetToken = crypto.createHash('sha256').update(token).digest('hex');
+  const user = await User.findOneAndUpdate({
+    resetPasswordToken: resetToken,
+    resetPasswordTokenExpire: { $gt: Date.now() },
+  });
+  if (!user) {
+    return next(new ErrorHandler('Token Invalid or Expired!', 404));
+  }
+
+  const { password, confirmPassword } = req.body;
+
+  if ((!password, !confirmPassword)) {
+    return next(new ErrorHandler('Credentials Missing!', 400));
+  }
+  if (password !== confirmPassword) {
+    return next(
+      new ErrorHandler("Password and Confirm Password Doesn't Match!",401)
+    );
+  }
+  user.password = password;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordTokenExpire = undefined;
+  await user.save();
+  generateTokenForBrowser(user, res, 200, 'Password reset successfull');
+});
+
+module.exports = {
+  createAccount,
+  otpVerify,
+  login,
+  logOut,
+  getUser,
+  forgotPassword,
+  resetPassword,
+};
