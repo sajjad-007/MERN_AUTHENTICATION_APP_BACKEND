@@ -12,11 +12,13 @@ dotenv.config({ path: './config/config.env' });
 
 app.use(
   cors({
-    origin: 'https://sajjad-auth-v1.netlify.app/auth',
-    methods: ['POST', 'GET', 'PUT'],
+    origin: 'https://sajjad-auth-v1.netlify.app',
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
+
 
 app.use(express.json());
 app.use(cookieParser());
