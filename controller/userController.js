@@ -23,7 +23,9 @@ const sendVerificationCode = async (
       await sendEmail({ email, subject: 'Verify Your Email', templete });
       res.status(200).json({
         success: true,
-        message: `email sent to ${email}`,
+        message: `OTP sent to ${email}`,
+        email,
+        phoneNumber,
       });
     } else if (verificationMethod === 'phone') {
       const verificationCodeWithSpace = verificationCode
@@ -127,13 +129,13 @@ const createAccount = asyncErrorCatcher(async (req, res, next) => {
 });
 const otpVerify = asyncErrorCatcher(async (req, res, next) => {
   const { email, phoneNumber, otp } = req.body;
-  const validatePhoneNumber = phoneNumber => {
-    const phoneRegx = /^\+880\d{10}$/; // expects +880 followed by 10 digits
-    return phoneRegx.test(phoneNumber); // returns true or false
-  };
-  if (!validatePhoneNumber(phoneNumber)) {
-    return next(new ErrorHandler("phone number format doesn't match!", 401));
-  }
+  // const validatePhoneNumber = phoneNumber => {
+  //   const phoneRegx = /^\+880\d{10}$/; // expects +880 followed by 10 digits
+  //   return phoneRegx.test(phoneNumber); // returns true or false
+  // };
+  // if (!validatePhoneNumber(phoneNumber)) {
+  //   return next(new ErrorHandler("phone number format doesn't match!", 401));
+  // }
   try {
     //Find all unverified users with the same email or phoneNumber.
     //Keep the most recently created one, using sort()
@@ -186,7 +188,7 @@ const otpVerify = asyncErrorCatcher(async (req, res, next) => {
       user,
       res,
       200,
-      'Verification successfull, Redirecting to Login page'
+      'Verification successfull, Redirecting to homepage'
     );
   } catch (error) {
     return next(new ErrorHandler('Error From Otp Verification', 500));
@@ -255,7 +257,7 @@ const forgotPassword = asyncErrorCatcher(async (req, res, next) => {
     await sendEmail({ email, subject: 'Reset Password Token', message });
     res.status(200).json({
       success: true,
-      messge: `Reset token sent at ${email}`,
+      message: `Reset token sent at ${email}`,
     });
   } catch (error) {
     user.resetPasswordToken = undefined;
